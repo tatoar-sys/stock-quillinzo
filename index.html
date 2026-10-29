@@ -4,129 +4,324 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Control de Stock - Quillinzo</title>
-    <!-- Tailwind CSS para diseño rápido y responsive -->
+    <!-- Manifest & Theme for PWA -->
+    <meta name="theme-color" content="#065f46">
+    <meta name="description" content="Sistema de Control de Stock y Lista de Compras para Quillinzo">
+    
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- SDK de Supabase -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        quillinzo: {
+                            50: '#f0fdf4',
+                            100: '#dcfce7',
+                            500: '#10b981',
+                            700: '#047857',
+                            800: '#065f46',
+                            900: '#064e3b',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Supabase JS Client v2 -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
+    <style>
+        /* Estilos personalizados para animaciones y scrollbar */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #059669;
+            border-radius: 4px;
+        }
+    </style>
 </head>
-<body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col">
+<body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col font-sans">
 
-    <!-- Header -->
-    <header class="bg-emerald-800 text-white p-4 shadow-md flex justify-between items-center">
-        <h1 class="text-xl font-bold">📦 Control de Stock Quillinzo</h1>
-        <div id="user-info" class="text-sm"></div>
+    <!-- Header Principal -->
+    <header class="bg-quillinzo-800 text-white shadow-lg sticky top-0 z-30">
+        <div class="max-w-6xl mx-auto px-4 py-3 flex justify-between items-center">
+            <div class="flex items-center space-x-3">
+                <div class="bg-quillinzo-700 p-2 rounded-lg text-emerald-300">
+                    <i class="fa-solid fa-boxes-stacked text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-lg sm:text-xl font-bold tracking-wide">Stock Quillinzo</h1>
+                    <p class="text-xs text-emerald-200">Gestión de Inventario & Compras</p>
+                </div>
+            </div>
+
+            <!-- Estado de Usuario / Auth status -->
+            <div id="user-header-status" class="flex items-center space-x-2">
+                <span id="user-email" class="text-xs hidden md:inline text-emerald-100 font-medium"></span>
+                <button id="btn-login-modal" onclick="openAuthModal()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs px-3 py-1.5 rounded-lg transition flex items-center gap-1">
+                    <i class="fa-solid fa-right-to-bracket"></i> <span>Ingresar</span>
+                </button>
+                <button id="btn-logout" onclick="handleLogout()" class="hidden bg-red-600 hover:bg-red-700 text-white text-xs px-3 py-1.5 rounded-lg transition flex items-center gap-1">
+                    <i class="fa-solid fa-right-from-bracket"></i> <span class="hidden sm:inline">Salir</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Barra de Configuración de Supabase (Plegable) -->
+        <div id="supabase-config-bar" class="bg-quillinzo-900 px-4 py-2 text-xs border-t border-emerald-700/50">
+            <div class="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-2">
+                <div class="flex items-center gap-2 text-emerald-200">
+                    <i class="fa-solid fa-database"></i>
+                    <span class="font-semibold">Estado DB:</span>
+                    <span id="db-status-badge" class="bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded text-[10px] uppercase font-bold">Modo Demostración</span>
+                </div>
+                <div class="flex items-center gap-2 w-full md:w-auto">
+                    <button onclick="toggleConfigModal()" class="text-emerald-300 hover:text-white underline text-xs">
+                        <i class="fa-solid fa-gear"></i> Configurar Llaves Supabase
+                    </button>
+                </div>
+            </div>
+        </div>
     </header>
 
-    <!-- Main Container -->
-    <main class="flex-1 max-w-4xl w-full mx-auto p-4">
-        
-        <!-- Login Section (Oculto si está logueado) -->
-        <section id="auth-section" class="bg-white p-6 rounded-lg shadow max-w-md mx-auto mt-10">
-            <h2 class="text-lg font-semibold mb-4 text-center">Iniciar Sesión</h2>
-            <input type="email" id="email" placeholder="Correo electrónico" class="w-full p-2 border rounded mb-3">
-            <input type="password" id="password" placeholder="Contraseña" class="w-full p-2 border rounded mb-4">
-            <button onclick="handleLogin()" class="w-full bg-emerald-700 text-white p-2 rounded hover:bg-emerald-800 transition">Ingresar</button>
-        </section>
+    <!-- Navegación por Pestañas -->
+    <nav class="bg-white border-b border-slate-200 shadow-sm sticky top-[73px] z-20">
+        <div class="max-w-6xl mx-auto px-2 flex justify-around sm:justify-start sm:space-x-4">
+            <button onclick="switchTab('inventory')" id="tab-inventory" class="tab-btn active border-b-2 border-quillinzo-700 text-quillinzo-800 font-bold py-3 px-3 sm:px-5 text-xs sm:text-sm flex items-center gap-2 transition">
+                <i class="fa-solid fa-list-check"></i>
+                <span>Inventario</span>
+                <span id="badge-total-items" class="bg-slate-100 text-slate-600 text-xs px-2 py-0.5 rounded-full ml-1">0</span>
+            </button>
+            <button onclick="switchTab('shopping')" id="tab-shopping" class="tab-btn border-b-2 border-transparent text-slate-500 font-medium hover:text-quillinzo-700 py-3 px-3 sm:px-5 text-xs sm:text-sm flex items-center gap-2 transition">
+                <i class="fa-solid fa-cart-shopping"></i>
+                <span>Faltantes / Compras</span>
+                <span id="badge-missing-items" class="bg-red-100 text-red-700 text-xs px-2 py-0.5 rounded-full font-bold ml-1">0</span>
+            </button>
+            <button onclick="switchTab('logs')" id="tab-logs" class="tab-btn border-b-2 border-transparent text-slate-500 font-medium hover:text-quillinzo-700 py-3 px-3 sm:px-5 text-xs sm:text-sm flex items-center gap-2 transition">
+                <i class="fa-solid fa-clock-rotate-left"></i>
+                <span>Movimientos</span>
+            </button>
+        </div>
+    </nav>
 
-        <!-- App Content (Oculto si no está logueado) -->
-        <section id="app-section" class="hidden">
-            <div class="flex justify-between items-center mb-6">
-                <h2 class="text-2xl font-bold text-slate-700">Inventario Actual</h2>
-                <button onclick="handleLogout()" class="bg-red-500 text-white px-3 py-1 rounded text-sm hover:bg-red-600">Cerrar Sesión</button>
+    <!-- Contenido Principal -->
+    <main class="flex-1 max-w-6xl w-full mx-auto p-3 sm:p-6">
+
+        <!-- Pestaña 1: Inventario General -->
+        <section id="view-inventory" class="tab-content block space-y-4">
+            
+            <!-- Barra de Herramientas y Filtros -->
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col md:flex-row gap-3 items-center justify-between">
+                
+                <!-- Buscador -->
+                <div class="relative w-full md:w-72">
+                    <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                    <input type="text" id="search-input" onkeyup="filterAndRenderItems()" placeholder="Buscar producto..." class="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-quillinzo-500">
+                </div>
+
+                <!-- Filtro por Categoria -->
+                <div class="flex items-center gap-2 w-full md:w-auto">
+                    <label for="category-filter" class="text-xs font-semibold text-slate-500 hidden sm:inline">Categoría:</label>
+                    <select id="category-filter" onchange="filterAndRenderItems()" class="w-full md:w-auto bg-slate-50 border border-slate-300 text-slate-700 py-2 px-3 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-quillinzo-500">
+                        <option value="ALL">Todas las Categorías</option>
+                        <option value="Almacén Seco">Almacén Seco</option>
+                        <option value="Galletitas">Galletitas y Snacks</option>
+                        <option value="Infusiones">Infusiones</option>
+                        <option value="Harinas/Azúcares">Harinas y Azúcares</option>
+                        <option value="Conservas">Conservas</option>
+                        <option value="Bebidas">Bebidas</option>
+                        <option value="Ferretería">Ferretería</option>
+                        <option value="Otros">Otros</option>
+                    </select>
+                </div>
+
+                <!-- Botón Agregar Producto -->
+                <div class="w-full md:w-auto flex justify-end">
+                    <button onclick="openItemModal()" class="w-full md:w-auto bg-quillinzo-700 hover:bg-quillinzo-800 text-white font-medium px-4 py-2 rounded-lg text-sm transition flex items-center justify-center gap-2 shadow-sm">
+                        <i class="fa-solid fa-plus"></i>
+                        <span>Nuevo Producto</span>
+                    </button>
+                </div>
             </div>
 
-            <!-- Listado de Stock -->
-            <div class="bg-white rounded-lg shadow overflow-hidden">
-                <table class="w-full text-left border-collapse">
-                    <thead class="bg-slate-200 text-slate-700 uppercase text-xs">
-                        <tr>
-                            <th class="p-3">Artículo</th>
-                            <th class="p-3">Categoría</th>
-                            <th class="p-3">Cantidad</th>
-                            <th class="p-3">Vencimiento</th>
-                            <th class="p-3">Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody id="inventory-table-body" class="divide-y divide-slate-100 text-sm">
-                        <!-- Los datos se cargan dinámicamente con JS -->
-                    </tbody>
-                </table>
+            <!-- Tabla/Grilla de Productos -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="overflow-x-auto custom-scrollbar">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-slate-50 border-b border-slate-200 text-xs text-slate-500 uppercase tracking-wider font-semibold">
+                                <th class="p-3.5">Producto</th>
+                                <th class="p-3.5">Categoría</th>
+                                <th class="p-3.5 text-center">Cantidad</th>
+                                <th class="p-3.5">Vencimiento</th>
+                                <th class="p-3.5 text-center">Estado</th>
+                                <th class="p-3.5 text-right">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="inventory-table-body" class="divide-y divide-slate-100 text-sm">
+                            <!-- Filas generadas dinámicamente -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Empty State -->
+                <div id="empty-inventory-state" class="hidden p-8 text-center text-slate-400 space-y-2">
+                    <i class="fa-solid fa-box-open text-4xl text-slate-300"></i>
+                    <p class="text-sm">No se encontraron productos en el inventario.</p>
+                </div>
             </div>
         </section>
+
+        <!-- Pestaña 2: Lista de Faltantes / Compras -->
+        <section id="view-shopping" class="tab-content hidden space-y-4">
+            <div class="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r-xl shadow-sm flex items-start gap-3">
+                <i class="fa-solid fa-triangle-exclamation text-amber-600 text-xl mt-0.5"></i>
+                <div>
+                    <h3 class="font-bold text-amber-900 text-sm">Lista de Faltantes & Compras Recomendadas</h3>
+                    <p class="text-xs text-amber-800 mt-0.5">Aquí se muestran los ítems marcados como 'Falta' o que tienen stock igual a 0. Puedes registrarlos rápidamente cuando los compres.</p>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                    <span class="text-xs font-bold text-slate-500 uppercase">Productos a Comprar</span>
+                    <button onclick="exportShoppingList()" class="text-xs bg-slate-200 hover:bg-slate-300 text-slate-700 px-3 py-1.5 rounded-lg font-medium transition flex items-center gap-1">
+                        <i class="fa-solid fa-copy"></i> Copiar Lista
+                    </button>
+                </div>
+                <div id="shopping-list-container" class="divide-y divide-slate-100">
+                    <!-- Elementos de lista de compras -->
+                </div>
+                
+                <div id="empty-shopping-state" class="hidden p-8 text-center text-slate-400 space-y-2">
+                    <i class="fa-solid fa-circle-check text-4xl text-emerald-400"></i>
+                    <p class="text-sm">¡Excelente! No hay productos en la lista de faltantes.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Pestaña 3: Registro de Movimientos -->
+        <section id="view-logs" class="tab-content hidden space-y-4">
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="p-4 border-b border-slate-100 bg-slate-50">
+                    <h3 class="font-bold text-slate-700 text-sm">Historial de Entradas y Salidas</h3>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-slate-50 border-b border-slate-200 text-xs text-slate-500 uppercase font-semibold">
+                                <th class="p-3.5">Fecha/Hora</th>
+                                <th class="p-3.5">Producto</th>
+                                <th class="p-3.5">Tipo</th>
+                                <th class="p-3.5 text-center">Cantidad</th>
+                                <th class="p-3.5">Registrado por</th>
+                            </tr>
+                        </thead>
+                        <tbody id="logs-table-body" class="divide-y divide-slate-100 text-sm">
+                            <!-- Logs de movimientos cargados por JS -->
+                        </tbody>
+                    </table>
+                </div>
+                <div id="empty-logs-state" class="hidden p-8 text-center text-slate-400 space-y-2">
+                    <i class="fa-solid fa-clock text-4xl text-slate-300"></i>
+                    <p class="text-sm">Aún no hay registros de movimientos.</p>
+                </div>
+            </div>
+        </section>
+
     </main>
 
-    <!-- Script de lógica -->
-    <script>
-        // Configura tus credenciales de Supabase aquí
-        const SUPABASE_URL = 'TU_SUPABASE_URL';
-        const SUPABASE_ANON_KEY = 'TU_SUPABASE_ANON_KEY';
-        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    <!-- Modal Agregar / Editar Producto -->
+    <div id="item-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-xl max-w-md w-full overflow-hidden transform transition-all">
+            <div class="bg-quillinzo-800 text-white p-4 flex justify-between items-center">
+                <h3 id="modal-title" class="font-bold text-lg">Agregar Producto</h3>
+                <button onclick="closeItemModal()" class="text-emerald-200 hover:text-white text-lg"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form id="item-form" onsubmit="handleSaveItem(event)" class="p-5 space-y-4">
+                <input type="hidden" id="item-id">
+                
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Nombre del Producto *</label>
+                    <input type="text" id="item-nombre" required placeholder="Ej. Fideos Mostachol" class="w-full p-2.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-quillinzo-500 focus:outline-none">
+                </div>
 
-        async function checkUser() {
-            const { data: { session } } = await supabaseClient.auth.getSession();
-            if (session) {
-                document.getElementById('auth-section').classList.add('hidden');
-                document.getElementById('app-section').classList.remove('hidden');
-                document.getElementById('user-info').innerText = session.user.email;
-                loadInventory();
-            } else {
-                document.getElementById('auth-section').classList.remove('hidden');
-                document.getElementById('app-section').classList.add('hidden');
-            }
-        }
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Categoría *</label>
+                        <select id="item-categoria" required class="w-full p-2.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-quillinzo-500 focus:outline-none">
+                            <option value="Almacén Seco">Almacén Seco</option>
+                            <option value="Galletitas">Galletitas y Snacks</option>
+                            <option value="Infusiones">Infusiones</option>
+                            <option value="Harinas/Azúcares">Harinas y Azúcares</option>
+                            <option value="Conservas">Conservas</option>
+                            <option value="Bebidas">Bebidas</option>
+                            <option value="Ferretería">Ferretería</option>
+                            <option value="Otros">Otros</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Estado Initial *</label>
+                        <select id="item-estado" required class="w-full p-2.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-quillinzo-500 focus:outline-none">
+                            <option value="hay">Hay en stock</option>
+                            <option value="falta">Falta / Comprar</option>
+                        </select>
+                    </div>
+                </div>
 
-        async function handleLogin() {
-            const email = document.getElementById('email').value;
-            const password = document.getElementById('password').value;
-            const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
-            if (error) {
-                alert('Error al iniciar sesión: ' + error.message);
-            } else {
-                checkUser();
-            }
-        }
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Cantidad *</label>
+                        <input type="number" id="item-cantidad" min="0" value="1" required class="w-full p-2.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-quillinzo-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Vencimiento</label>
+                        <input type="date" id="item-vencimiento" class="w-full p-2.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-quillinzo-500 focus:outline-none">
+                    </div>
+                </div>
 
-        async function handleLogout() {
-            await supabaseClient.auth.signOut();
-            checkUser();
-        }
+                <div class="pt-3 flex justify-end gap-2">
+                    <button type="button" onclick="closeItemModal()" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 text-sm font-medium rounded-lg transition">Cancelar</button>
+                    <button type="submit" class="px-5 py-2 bg-quillinzo-700 hover:bg-quillinzo-800 text-white text-sm font-medium rounded-lg transition shadow-sm">Guardar</button>
+                </div>
+            </form>
+        </div>
+    </div>
 
-        async function loadInventory() {
-            const { data, error } = await supabaseClient.from('items').select('*');
-            const tbody = document.getElementById('inventory-table-body');
-            tbody.innerHTML = '';
-            
-            if (error) {
-                console.error('Error cargando inventario:', error);
-                return;
-            }
+    <!-- Modal Login / Registro -->
+    <div id="auth-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-xl max-w-sm w-full overflow-hidden">
+            <div class="bg-quillinzo-800 text-white p-4 flex justify-between items-center">
+                <h3 class="font-bold text-lg"><i class="fa-solid fa-user-lock mr-2"></i> Iniciar Sesión</h3>
+                <button onclick="closeAuthModal()" class="text-emerald-200 hover:text-white text-lg"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form onsubmit="handleAuthLogin(event)" class="p-5 space-y-4">
+                <p class="text-xs text-slate-500">Ingresa las credenciales de tu cuenta de Supabase.</p>
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Correo Electrónico</label>
+                    <input type="email" id="auth-email" required placeholder="usuario@ejemplo.com" class="w-full p-2.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-quillinzo-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Contraseña</label>
+                    <input type="password" id="auth-password" required placeholder="••••••••" class="w-full p-2.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-quillinzo-500">
+                </div>
+                <button type="submit" class="w-full py-2.5 bg-quillinzo-700 hover:bg-quillinzo-800 text-white font-medium rounded-lg text-sm transition">Acceder</button>
+            </form>
+        </div>
+    </div>
 
-            data.forEach(item => {
-                const row = `<tr class="hover:bg-slate-50">
-                    <td class="p-3 font-medium">${item.nombre}</td>
-                    <td class="p-3 text-slate-500">${item.categoria}</td>
-                    <td class="p-3 font-bold">${item.cantidad}</td>
-                    <td class="p-3 text-slate-500">${item.vencimiento || 'Sin fecha'}</td>
-                    <td class="p-3">
-                        <button onclick="updateStock('${item.id}', 1)" class="bg-emerald-100 text-emerald-800 px-2 py-1 rounded text-xs mr-1 font-bold">+</button>
-                        <button onclick="updateStock('${item.id}', -1)" class="bg-amber-100 text-amber-800 px-2 py-1 rounded text-xs font-bold">-</button>
-                    </td>
-                </tr>`;
-                tbody.innerHTML += row;
-            });
-        }
-
-        async function updateStock(id, change) {
-            // Lógica rápida para sumar/restar stock
-            const { data: current } = await supabaseClient.from('items').select('cantidad').eq('id', id).single();
-            const nuevaCantidad = Math.max(0, current.cantidad + change);
-            
-            await supabaseClient.from('items').update({ cantidad: nuevaCantidad }).eq('id', id);
-            loadInventory();
-        }
-
-        // Ejecutar verificación al cargar
-        checkUser();
-    </script>
-</body>
-</html>
+    <!-- Modal Configuración Llaves Supabase -->
+    <div id="config-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-xl max-w-lg w-full overflow-hidden">
+            <div class="bg-slate-800 text-white p-4 flex justify-between items-center">
+                <h3 class="font-bold text-base"><i class="fa-solid fa-gears mr-2"></i> Credenciales de Sup
